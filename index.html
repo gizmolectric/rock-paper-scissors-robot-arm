@@ -243,17 +243,16 @@
 
     const token = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
 
-    // Send both arm moves to V0–V11
-    let url = `https://blynk.cloud/external/api/update?token=${token}`;
-
+    // /batch/update sends all pins in one request
+    let url = `https://blynk.cloud/external/api/batch/update?token=${token}`;
     for (let k in values) {
       url += `&${k}=${values[k]}`;
     }
 
     fetch(url)
       .then(res => {
-        if (res.ok) console.log("Blynk updated successfully");
-        else console.error("Blynk update failed");
+        if (res.ok) console.log("Blynk batch updated successfully");
+        else res.text().then(t => console.error("Blynk batch failed:", t));
       })
       .catch(err => console.error("Error:", err));
 
