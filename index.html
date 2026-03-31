@@ -219,21 +219,22 @@
       .catch(err => console.error(`Blynk ${pin} error:`, err));
   }
 
-  // Poll V20 and V21 from Blynk every second and sync dots on both computers
+  // Poll V20 and V21 from Blynk every second and sync dots + shoot on both computers
   function pollDots() {
-    fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V20`)
-      .then(r => r.json()).then(val => {
-        const active = parseInt(val) === 1;
-        document.getElementById('leftDot').classList.toggle('green', active);
-        if (!active) leftMove = null;
-      }).catch(() => {});
+    Promise.all([
+      fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V20`).then(r => r.json()),
+      fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V21`).then(r => r.json())
+    ]).then(([v20, v21]) => {
+      const leftActive  = parseInt(v20) === 1;
+      const rightActive = parseInt(v21) === 1;
 
-    fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V21`)
-      .then(r => r.json()).then(val => {
-        const active = parseInt(val) === 1;
-        document.getElementById('rightDot').classList.toggle('green', active);
-        if (!active) rightMove = null;
-      }).catch(() => {});
+      document.getElementById('leftDot').classList.toggle('green', leftActive);
+      document.getElementById('rightDot').classList.toggle('green', rightActive);
+      document.getElementById('shoot').classList.toggle('green', leftActive && rightActive);
+
+      if (!leftActive)  leftMove  = null;
+      if (!rightActive) rightMove = null;
+    }).catch(() => {});
   }
   setInterval(pollDots, 1000);
 
