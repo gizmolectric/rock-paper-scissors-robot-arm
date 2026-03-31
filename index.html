@@ -210,24 +210,40 @@
   </div>
 
   <script>
+  const TOKEN = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
   let leftMove = null;
   let rightMove = null;
 
-  function sendBlynkBool(pin, value) {
-    const token = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
-    fetch(`https://blynk.cloud/external/api/update?token=${token}&${pin}=${value}`)
+  function sendBlynk(pin, value) {
+    fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&${pin}=${value}`)
       .catch(err => console.error(`Blynk ${pin} error:`, err));
   }
+
+  // Poll V20 and V21 from Blynk every second and sync dots on both computers
+  function pollDots() {
+    fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V20`)
+      .then(r => r.json()).then(val => {
+        const active = parseInt(val) === 1;
+        document.getElementById('leftDot').classList.toggle('green', active);
+        if (!active) leftMove = null;
+      }).catch(() => {});
+
+    fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V21`)
+      .then(r => r.json()).then(val => {
+        const active = parseInt(val) === 1;
+        document.getElementById('rightDot').classList.toggle('green', active);
+        if (!active) rightMove = null;
+      }).catch(() => {});
+  }
+  setInterval(pollDots, 1000);
 
   function selectMove(side, move) {
     if (side === 'left') {
       leftMove = move;
-      document.getElementById('leftDot').classList.add('green');
-      sendBlynkBool('V20', 1);
+      sendBlynk('V20', 1);
     } else {
       rightMove = move;
-      document.getElementById('rightDot').classList.add('green');
-      sendBlynkBool('V21', 1);
+      sendBlynk('V21', 1);
     }
 
     if (leftMove && rightMove) {
@@ -261,8 +277,8 @@
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('rightDot').classList.remove('green');
     document.getElementById('shoot').classList.remove('green');
-    sendBlynkBool('V20', 0);
-    sendBlynkBool('V21', 0);
+    sendBlynk('V20', 0);
+    sendBlynk('V21', 0);
   }
 
   const combos = {
