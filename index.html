@@ -1,145 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RPS Robot Arm Control</title>
-<style>
-body {
-  margin: 0;
-  font-family: Arial, sans-serif;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-}
-.container {
-  display: flex;
-  flex: 1;
-}
-.side {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #ccc;
-}
-button {
-  margin: 10px;
-  padding: 15px 25px;
-  font-size: 16px;
-}
-.dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: gray;
-  margin-top: 20px;
-}
-#shoot {
-  width: 100%;
-  padding: 20px;
-  font-size: 20px;
-  background: gray;
-  color: white;
-  border: none;
-}
-.green {
-  background: green !important;
-}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+  <title>RPS Robot Arm Control</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background-color: #f8f9fa;
+    }
+
+    #splitscreen {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .side {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 2rem;
+    }
+
+    #left {
+      background-color: blue;
+      border-right: 2px solid #dee2e6;
+    }
+
+    #right {
+      background-color: red;
+      border-left: 2px solid #dee2e6;
+    }
+
+    .dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: #ccc;
+      transition: background-color 0.2s;
+      margin-top: 8px;
+    }
+
+    .dot.green {
+      background-color: #28a745;
+    }
+
+    #shoot-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      background-color: #343a40;
+    }
+
+    #shoot {
+      min-width: 200px;
+      font-size: 1.25rem;
+      letter-spacing: 0.1em;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    #shoot.green {
+      background-color: #28a745;
+      border-color: #28a745;
+    }
+
+    #shoot:active {
+      transform: scale(0.97);
+    }
+  </style>
 </head>
 <body>
 
-<div class="container">
-  <div class="side" id="left">
-    <h2>Left</h2>
-    <button onclick="selectMove('left','rock')">Rock</button>
-    <button onclick="selectMove('left','paper')">Paper</button>
-    <button onclick="selectMove('left','scissors')">Scissors</button>
-    <div class="dot" id="leftDot"></div>
+  <div id="splitscreen">
+    <div class="side" id="left">
+      <h2>Left</h2>
+      <button type="button" class="btn btn-danger" onclick="selectMove('left','rock')">Rock ✊</button>
+      <button type="button" class="btn btn-danger" onclick="selectMove('left','paper')">Paper ✋</button>
+      <button type="button" class="btn btn-danger" onclick="selectMove('left','scissors')">Scissors ✌️</button>
+      <div class="dot" id="leftDot"></div>
+    </div>
+
+    <div class="side" id="right">
+      <h2>Right</h2>
+      <button type="button" class="btn btn-primary" onclick="selectMove('right','rock')">Rock ✊</button>
+      <button type="button" class="btn btn-primary" onclick="selectMove('right','paper')">Paper ✋</button>
+      <button type="button" class="btn btn-primary" onclick="selectMove('right','scissors')">Scissors ✌️</button>
+      <div class="dot" id="rightDot"></div>
+    </div>
   </div>
 
-  <div class="side" id="right">
-    <h2>Right</h2>
-    <button onclick="selectMove('right','rock')">Rock</button>
-    <button onclick="selectMove('right','paper')">Paper</button>
-    <button onclick="selectMove('right','scissors')">Scissors</button>
-    <div class="dot" id="rightDot"></div>
+  <div id="shoot-bar">
+    <button type="button" class="btn btn-secondary" id="shoot" onclick="shoot()">SHOOT</button>
   </div>
-</div>
 
-<button id="shoot" onclick="shoot()">SHOOT</button>
+  <script>
+  let leftMove = null;
+  let rightMove = null;
 
-<script>
-let leftMove = null;
-let rightMove = null;
+  function selectMove(side, move) {
+    if (side === 'left') {
+      leftMove = move;
+      document.getElementById('leftDot').classList.add('green');
+    } else {
+      rightMove = move;
+      document.getElementById('rightDot').classList.add('green');
+    }
 
-function selectMove(side, move) {
-  if (side === 'left') {
-    leftMove = move;
-    document.getElementById('leftDot').classList.add('green');
-  } else {
-    rightMove = move;
-    document.getElementById('rightDot').classList.add('green');
+    if (leftMove && rightMove) {
+      document.getElementById('shoot').classList.add('green');
+    }
   }
 
-  if (leftMove && rightMove) {
-    document.getElementById('shoot').classList.add('green');
+  function shoot() {
+    if (!leftMove || !rightMove) return;
+
+    const key = leftMove + '_' + rightMove;
+    const values = combos[key];
+
+    // SEND TO BLYNK (BLYNK IOT HTTP API)
+    const token = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
+
+    let url = `https://blynk.cloud/external/api/update?token=${token}`;
+
+    // Attach V0–V11 values (object-based)
+    for (let key in values) {
+      url += `&${key}=${values[key]}`;
+    }
+
+    fetch(url)
+      .then(res => {
+        if (res.ok) {
+          console.log("Blynk updated successfully");
+        } else {
+          console.error("Blynk update failed");
+        }
+      })
+      .catch(err => console.error("Error:", err));
+
+    // Reset after shoot
+    leftMove = null;
+    rightMove = null;
+    document.getElementById('leftDot').classList.remove('green');
+    document.getElementById('rightDot').classList.remove('green');
+    document.getElementById('shoot').classList.remove('green');
   }
-}
 
-function shoot() {
-  if (!leftMove || !rightMove) return;
+  // ALL 9 COMBINATIONS (EDIT VALUES LATER)
+  const combos = {
+    rock_rock:  { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
+    rock_paper: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
+    rock_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
 
-  const key = leftMove + '_' + rightMove;
-  const values = combos[key];
+    paper_rock: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
+    paper_paper: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
+    paper_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
 
-  // SEND TO BLYNK (BLYNK IOT HTTP API)
-  const token = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
-
-  let url = `https://blynk.cloud/external/api/update?token=${token}`;
-
-  // Attach V0–V11 values (object-based)
-  for (let key in values) {
-    url += `&${key}=${values[key]}`;
-  }
-
-  fetch(url)
-    .then(res => {
-      if (res.ok) {
-        console.log("Blynk updated successfully");
-      } else {
-        console.error("Blynk update failed");
-      }
-    })
-    .catch(err => console.error("Error:", err));
-
-  // Reset after shoot (optional but useful)
-  leftMove = null;
-  rightMove = null;
-  document.getElementById('leftDot').classList.remove('green');
-  document.getElementById('rightDot').classList.remove('green');
-  document.getElementById('shoot').classList.remove('green');
-}
-
-// ALL 9 COMBINATIONS (EDIT VALUES LATER)
-// ALL 9 COMBINATIONS (EDIT EACH VALUE)
-// Each combo explicitly lists V0–V11 so you can customize
-const combos = {
-  rock_rock:  { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-  rock_paper: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-  rock_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-
-  paper_rock: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-  paper_paper: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-  paper_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-
-  scissors_rock: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-  scissors_paper: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-  scissors_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 }
-};
-</script>
+    scissors_rock: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
+    scissors_paper: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
+    scissors_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 }
+  };
+  </script>
 
 </body>
 </html>
