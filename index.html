@@ -213,13 +213,21 @@
   let leftMove = null;
   let rightMove = null;
 
+  function sendBlynkBool(pin, value) {
+    const token = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
+    fetch(`https://blynk.cloud/external/api/update?token=${token}&${pin}=${value}`)
+      .catch(err => console.error(`Blynk ${pin} error:`, err));
+  }
+
   function selectMove(side, move) {
     if (side === 'left') {
       leftMove = move;
       document.getElementById('leftDot').classList.add('green');
+      sendBlynkBool('V20', 1);
     } else {
       rightMove = move;
       document.getElementById('rightDot').classList.add('green');
+      sendBlynkBool('V21', 1);
     }
 
     if (leftMove && rightMove) {
@@ -234,6 +242,8 @@
     const values = combos[key];
 
     const token = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
+
+    // Send both arm moves to V0–V11
     let url = `https://blynk.cloud/external/api/update?token=${token}`;
 
     for (let k in values) {
@@ -252,6 +262,8 @@
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('rightDot').classList.remove('green');
     document.getElementById('shoot').classList.remove('green');
+    sendBlynkBool('V20', 0);
+    sendBlynkBool('V21', 0);
   }
 
   const combos = {
