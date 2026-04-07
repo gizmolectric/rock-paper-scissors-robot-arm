@@ -183,20 +183,16 @@
       <div class="dot" id="rightDot"></div>
     </div>
 
-    <!-- Jagged lightning bolt running full height down the center seam -->
     <div id="lightning-divider">
       <svg viewBox="0 0 60 900" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-        <!-- Outer orange glow -->
         <polyline
           points="30,0 14,70 46,70 8,160 44,160 6,260 48,260 10,360 50,360 4,460 46,460 12,560 48,560 6,660 44,660 10,760 50,760 30,900"
           fill="none" stroke="#FF6B00" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" opacity="0.5"
         />
-        <!-- Mid yellow -->
         <polyline
           points="30,0 14,70 46,70 8,160 44,160 6,260 48,260 10,360 50,360 4,460 46,460 12,560 48,560 6,660 44,660 10,760 50,760 30,900"
           fill="none" stroke="#FFD700" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"
         />
-        <!-- White hot core -->
         <polyline
           points="30,0 14,70 46,70 8,160 44,160 6,260 48,260 10,360 50,360 4,460 46,460 12,560 48,560 6,660 44,660 10,760 50,760 30,900"
           fill="none" stroke="white" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
@@ -214,37 +210,52 @@
   let leftMove = null;
   let rightMove = null;
 
+  // Dictionaries to translate between strings and Blynk integers (0-3)
+  const moveToInt = { 'rock': 1, 'paper': 2, 'scissors': 3 };
+  const intToMove = { 0: null, 1: 'rock', 2: 'paper', 3: 'scissors' };
+
   function sendBlynk(pin, value) {
     fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&${pin}=${value}`)
       .catch(err => console.error(`Blynk ${pin} error:`, err));
   }
 
-  // Poll V20 and V21 from Blynk every second and sync dots + shoot on both computers
+  // Poll V20 and V21 from Blynk every second and sync state
   function pollDots() {
     Promise.all([
-      fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V20`).then(r => r.json()),
-      fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V21`).then(r => r.json())
+      // Using .text() instead of .json() because Blynk sometimes returns raw numbers without quotes
+      fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V20`).then(r => r.text()),
+      fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V21`).then(r => r.text())
     ]).then(([v20, v21]) => {
-      const leftActive  = parseInt(v20) === 1;
-      const rightActive = parseInt(v21) === 1;
+      
+      const leftVal = parseInt(v20) || 0;
+      const rightVal = parseInt(v21) || 0;
 
+      // Sync the exact moves across computers (so Computer A knows what Computer B chose)
+      leftMove = intToMove[leftVal];
+      rightMove = intToMove[rightVal];
+
+      const leftActive = leftVal > 0;
+      const rightActive = rightVal > 0;
+
+      // Update UI Dots and Shoot button based on synced readiness
       document.getElementById('leftDot').classList.toggle('green', leftActive);
       document.getElementById('rightDot').classList.toggle('green', rightActive);
       document.getElementById('shoot').classList.toggle('green', leftActive && rightActive);
 
-      if (!leftActive)  leftMove  = null;
-      if (!rightActive) rightMove = null;
     }).catch(() => {});
   }
   setInterval(pollDots, 1000);
 
   function selectMove(side, move) {
+    // Send the integer equivalent (1, 2, or 3) instead of just '1'
+    const val = moveToInt[move];
+
     if (side === 'left') {
       leftMove = move;
-      sendBlynk('V20', 1);
+      sendBlynk('V20', val);
     } else {
       rightMove = move;
-      sendBlynk('V21', 1);
+      sendBlynk('V21', val);
     }
 
     if (leftMove && rightMove) {
@@ -253,15 +264,15 @@
   }
 
   function shoot() {
+    // Prevent shooting if both moves aren't locked in
     if (!document.getElementById('shoot').classList.contains('green')) return;
+    if (!leftMove || !rightMove) return; 
 
     const key = leftMove + '_' + rightMove;
     const values = combos[key];
 
-    const token = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
-
     // /batch/update sends all pins in one request
-    let url = `https://blynk.cloud/external/api/batch/update?token=${token}`;
+    let url = `https://blynk.cloud/external/api/batch/update?token=${TOKEN}`;
     for (let k in values) {
       url += `&${k}=${values[k]}`;
     }
@@ -273,15 +284,19 @@
       })
       .catch(err => console.error("Error:", err));
 
+    // Reset local state and tell Blynk to reset pins to 0 (No input)
     leftMove = null;
     rightMove = null;
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('rightDot').classList.remove('green');
     document.getElementById('shoot').classList.remove('green');
+    
+    // Setting to 0 will clear the state on the other computer during the next poll
     sendBlynk('V20', 0);
     sendBlynk('V21', 0);
   }
 
+  // Your combinations remain unchanged
   const combos = {
     rock_rock:         { V0:0, V1:0, V2:0, V3:0, V4:0, V5:0, V6:0, V7:0, V8:0, V9:0, V10:0, V11:0 },
     rock_paper:        { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
