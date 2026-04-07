@@ -253,17 +253,33 @@
   }
 
   function shoot() {
-    // Guard based on shoot button state (driven by poll, works across both computers)
     if (!document.getElementById('shoot').classList.contains('green')) return;
 
-    sendBlynk('V20', 0);
-    sendBlynk('V21', 0);
+    const key = leftMove + '_' + rightMove;
+    const values = combos[key];
+
+    const token = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
+
+    // /batch/update sends all pins in one request
+    let url = `https://blynk.cloud/external/api/batch/update?token=${token}`;
+    for (let k in values) {
+      url += `&${k}=${values[k]}`;
+    }
+
+    fetch(url)
+      .then(res => {
+        if (res.ok) console.log("Blynk batch updated successfully");
+        else res.text().then(t => console.error("Blynk batch failed:", t));
+      })
+      .catch(err => console.error("Error:", err));
 
     leftMove = null;
     rightMove = null;
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('rightDot').classList.remove('green');
     document.getElementById('shoot').classList.remove('green');
+    sendBlynk('V20', 0);
+    sendBlynk('V21', 0);
   }
 
   const combos = {
