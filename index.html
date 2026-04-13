@@ -33,6 +33,7 @@
       justify-content: center;
       gap: 20px;
       padding: 2rem;
+      transition: background 0.4s ease;
     }
 
     #left {
@@ -41,6 +42,15 @@
 
     #right {
       background: linear-gradient(225deg, #2e0a0a 0%, #500010 60%, #800020 100%);
+    }
+
+    /* Error state: sides turn red */
+    #left.error-state {
+      background: linear-gradient(135deg, #2e0000 0%, #5c0000 60%, #8b0000 100%);
+    }
+
+    #right.error-state {
+      background: linear-gradient(225deg, #2e0000 0%, #5c0000 60%, #8b0000 100%);
     }
 
     .side h2 {
@@ -85,6 +95,12 @@
       box-shadow: 0 6px 24px rgba(220, 38, 38, 0.8);
     }
 
+    /* Error state: buttons turn red on both sides */
+    .error-state .btn {
+      background: linear-gradient(135deg, #7f0000, #cc0000) !important;
+      box-shadow: 0 4px 15px rgba(200, 0, 0, 0.5) !important;
+    }
+
     .dot {
       width: 18px;
       height: 18px;
@@ -99,6 +115,12 @@
       background-color: #22c55e;
       border-color: #16a34a;
       box-shadow: 0 0 12px #22c55e;
+    }
+
+    .dot.red {
+      background-color: #ef4444;
+      border-color: #b91c1c;
+      box-shadow: 0 0 12px #ef4444;
     }
 
     #lightning-divider {
@@ -122,6 +144,14 @@
         drop-shadow(0 0 28px #FFB300)
         drop-shadow(0 0 55px #FF6B00);
       animation: flicker 3.5s infinite;
+    }
+
+    #lightning-divider.error-flash svg {
+      filter:
+        drop-shadow(0 0 4px #fff)
+        drop-shadow(0 0 12px #ff3333)
+        drop-shadow(0 0 28px #cc0000)
+        drop-shadow(0 0 55px #880000);
     }
 
     @keyframes flicker {
@@ -162,9 +192,110 @@
     #shoot:active {
       transform: scale(0.97);
     }
+
+    /* ── ERROR MODAL OVERLAY ── */
+    #error-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+
+    #error-overlay.show {
+      display: flex;
+    }
+
+    #error-modal {
+      background: linear-gradient(160deg, #1a0000 0%, #3a0000 100%);
+      border: 2px solid #cc0000;
+      border-radius: 16px;
+      padding: 2.5rem 3rem;
+      text-align: center;
+      max-width: 420px;
+      width: 90%;
+      box-shadow:
+        0 0 30px rgba(220, 0, 0, 0.5),
+        0 0 80px rgba(180, 0, 0, 0.3),
+        inset 0 0 40px rgba(100, 0, 0, 0.2);
+      animation: modal-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes modal-in {
+      from { transform: scale(0.7); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+
+    #error-modal .error-icon {
+      font-size: 3rem;
+      margin-bottom: 0.75rem;
+      animation: shake 0.5s ease 0.1s;
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-8px) rotate(-3deg); }
+      40%      { transform: translateX(8px)  rotate(3deg); }
+      60%      { transform: translateX(-5px) rotate(-2deg); }
+      80%      { transform: translateX(5px)  rotate(2deg); }
+    }
+
+    #error-modal h3 {
+      color: #ff4444;
+      font-weight: 800;
+      font-size: 1.1rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 12px rgba(255, 68, 68, 0.6);
+    }
+
+    #error-modal p {
+      color: #ffaaaa;
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+
+    #reset-btn {
+      background: linear-gradient(135deg, #cc0000, #ff4400);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 2.2rem;
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(200, 0, 0, 0.6);
+      transition: transform 0.1s, box-shadow 0.2s;
+    }
+
+    #reset-btn:hover {
+      transform: scale(1.06);
+      box-shadow: 0 6px 30px rgba(255, 68, 0, 0.8);
+    }
+
+    #reset-btn:active {
+      transform: scale(0.97);
+    }
   </style>
 </head>
 <body>
+
+  <!-- ERROR MODAL -->
+  <div id="error-overlay">
+    <div id="error-modal">
+      <div class="error-icon">⚠️</div>
+      <h3>Too Many Gestures!</h3>
+      <p>More than two gestures have been selected.<br>Please reset and start over.</p>
+      <button id="reset-btn" onclick="resetError()">↺ Reset</button>
+    </div>
+  </div>
 
   <div id="splitscreen">
     <div class="side" id="left">
@@ -207,37 +338,103 @@
 
   <script>
   const TOKEN = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
+  const ERROR_KEY = 'rps_error_state';
+
   let leftMove = null;
   let rightMove = null;
+  let leftSelected = false;   // true once left has picked something this round
+  let rightSelected = false;  // true once right has picked something this round
+  let errorState = false;
 
-  // Dictionaries to translate between strings and Blynk integers (0-3)
   const moveToInt = { 'rock': 1, 'paper': 2, 'scissors': 3 };
   const intToMove = { 0: null, 1: 'rock', 2: 'paper', 3: 'scissors' };
+
+  // ── Persist error state across refreshes via localStorage ──
+  function checkPersistedError() {
+    if (localStorage.getItem(ERROR_KEY) === 'true') {
+      triggerError();
+    }
+  }
+
+  function triggerError() {
+    errorState = true;
+    localStorage.setItem(ERROR_KEY, 'true');
+
+    // Show modal
+    document.getElementById('error-overlay').classList.add('show');
+
+    // Turn both sides red
+    document.getElementById('left').classList.add('error-state');
+    document.getElementById('right').classList.add('error-state');
+
+    // Turn both dots red
+    document.getElementById('leftDot').classList.remove('green');
+    document.getElementById('leftDot').classList.add('red');
+    document.getElementById('rightDot').classList.remove('green');
+    document.getElementById('rightDot').classList.add('red');
+
+    // Turn lightning red
+    document.getElementById('lightning-divider').classList.add('error-flash');
+
+    // Disable shoot
+    document.getElementById('shoot').classList.remove('green');
+  }
+
+  function resetError() {
+    errorState = false;
+    localStorage.removeItem(ERROR_KEY);
+
+    // Hide modal
+    document.getElementById('error-overlay').classList.remove('show');
+
+    // Restore side colors
+    document.getElementById('left').classList.remove('error-state');
+    document.getElementById('right').classList.remove('error-state');
+
+    // Reset dots
+    document.getElementById('leftDot').classList.remove('red', 'green');
+    document.getElementById('rightDot').classList.remove('red', 'green');
+
+    // Restore lightning
+    document.getElementById('lightning-divider').classList.remove('error-flash');
+
+    // Reset local tracking
+    leftMove = null;
+    rightMove = null;
+    leftSelected = false;
+    rightSelected = false;
+
+    // Clear Blynk state
+    sendBlynk('V20', 0);
+    sendBlynk('V21', 0);
+  }
 
   function sendBlynk(pin, value) {
     fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&${pin}=${value}`)
       .catch(err => console.error(`Blynk ${pin} error:`, err));
   }
 
-  // Poll V20 and V21 from Blynk every second and sync state
   function pollDots() {
+    if (errorState) return; // Don't poll while in error state
+
     Promise.all([
-      // Using .text() instead of .json() because Blynk sometimes returns raw numbers without quotes
       fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V20`).then(r => r.text()),
       fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V21`).then(r => r.text())
     ]).then(([v20, v21]) => {
-      
+
       const leftVal = parseInt(v20) || 0;
       const rightVal = parseInt(v21) || 0;
 
-      // Sync the exact moves across computers (so Computer A knows what Computer B chose)
       leftMove = intToMove[leftVal];
       rightMove = intToMove[rightVal];
 
       const leftActive = leftVal > 0;
       const rightActive = rightVal > 0;
 
-      // Update UI Dots and Shoot button based on synced readiness
+      // If Blynk shows both selected but our local tracking says we didn't do it, sync flags
+      if (leftActive) leftSelected = true;
+      if (rightActive) rightSelected = true;
+
       document.getElementById('leftDot').classList.toggle('green', leftActive);
       document.getElementById('rightDot').classList.toggle('green', rightActive);
       document.getElementById('shoot').classList.toggle('green', leftActive && rightActive);
@@ -247,15 +444,28 @@
   setInterval(pollDots, 1000);
 
   function selectMove(side, move) {
-    // Send the integer equivalent (1, 2, or 3) instead of just '1'
-    const val = moveToInt[move];
+    if (errorState) return; // Block input while error is shown
 
     if (side === 'left') {
+      if (leftSelected) {
+        // Second selection on left — trigger error
+        triggerError();
+        return;
+      }
       leftMove = move;
-      sendBlynk('V20', val);
+      leftSelected = true;
+      sendBlynk('V20', moveToInt[move]);
+      document.getElementById('leftDot').classList.add('green');
     } else {
+      if (rightSelected) {
+        // Second selection on right — trigger error
+        triggerError();
+        return;
+      }
       rightMove = move;
-      sendBlynk('V21', val);
+      rightSelected = true;
+      sendBlynk('V21', moveToInt[move]);
+      document.getElementById('rightDot').classList.add('green');
     }
 
     if (leftMove && rightMove) {
@@ -264,14 +474,13 @@
   }
 
   function shoot() {
-    // Prevent shooting if both moves aren't locked in
+    if (errorState) return;
     if (!document.getElementById('shoot').classList.contains('green')) return;
-    if (!leftMove || !rightMove) return; 
+    if (!leftMove || !rightMove) return;
 
     const key = leftMove + '_' + rightMove;
     const values = combos[key];
 
-    // /batch/update sends all pins in one request
     let url = `https://blynk.cloud/external/api/batch/update?token=${TOKEN}`;
     for (let k in values) {
       url += `&${k}=${values[k]}`;
@@ -284,19 +493,20 @@
       })
       .catch(err => console.error("Error:", err));
 
-    // Reset local state and tell Blynk to reset pins to 0 (No input)
+    // Reset everything after shoot
     leftMove = null;
     rightMove = null;
+    leftSelected = false;
+    rightSelected = false;
+
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('rightDot').classList.remove('green');
     document.getElementById('shoot').classList.remove('green');
-    
-    // Setting to 0 will clear the state on the other computer during the next poll
+
     sendBlynk('V20', 0);
     sendBlynk('V21', 0);
   }
 
-  // Your combinations remain unchanged
   const combos = {
     rock_rock:         { V0:0, V1:0, V2:0, V3:0, V4:0, V5:0, V6:0, V7:0, V8:0, V9:0, V10:0, V11:0 },
     rock_paper:        { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
@@ -308,6 +518,9 @@
     scissors_paper:    { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
     scissors_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 }
   };
+
+  // Check on load if a previous error was persisted
+  checkPersistedError();
   </script>
 
 </body>
