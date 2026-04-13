@@ -44,7 +44,6 @@
       background: linear-gradient(225deg, #2e0a0a 0%, #500010 60%, #800020 100%);
     }
 
-    /* Error state: sides turn red */
     #left.error-state {
       background: linear-gradient(135deg, #2e0000 0%, #5c0000 60%, #8b0000 100%);
     }
@@ -95,7 +94,6 @@
       box-shadow: 0 6px 24px rgba(220, 38, 38, 0.8);
     }
 
-    /* Error state: buttons turn red on both sides */
     .error-state .btn {
       background: linear-gradient(135deg, #7f0000, #cc0000) !important;
       box-shadow: 0 4px 15px rgba(200, 0, 0, 0.5) !important;
@@ -193,7 +191,7 @@
       transform: scale(0.97);
     }
 
-    /* ── ERROR MODAL OVERLAY ── */
+    /* ── ERROR MODAL ── */
     #error-overlay {
       display: none;
       position: fixed;
@@ -291,8 +289,8 @@
   <div id="error-overlay">
     <div id="error-modal">
       <div class="error-icon">⚠️</div>
-      <h3>Too Many Gestures!</h3>
-      <p>More than two gestures have been selected.<br>Please reset and start over.</p>
+      <h3>Foul Play Detected</h3>
+      <p id="error-message"></p>
       <button id="reset-btn" onclick="resetError()">↺ Reset</button>
     </div>
   </div>
@@ -337,74 +335,78 @@
   </div>
 
   <script>
-  const TOKEN = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
-  const ERROR_KEY = 'rps_error_state';
+  const TOKEN         = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
+  const ERROR_KEY     = 'rps_error_state';
+  const ERROR_MSG_KEY = 'rps_error_msg';
 
-  let leftMove = null;
-  let rightMove = null;
-  let leftSelected = false;   // true once left has picked something this round
-  let rightSelected = false;  // true once right has picked something this round
+  let leftMove      = null;
+  let rightMove     = null;
+  let leftSelected  = false;
+  let rightSelected = false;
+
+  // Tracks the first side this browser session clicked this round.
+  // A click on the opposite side triggers the "both arms" error.
+  let lastSideUsed = null;
+
+  // Raw click counters per side. Any side receiving a second click
+  // (even from a different person on the same side) triggers the
+  // "two players on same side" error.
+  let leftClickCount  = 0;
+  let rightClickCount = 0;
+
   let errorState = false;
 
   const moveToInt = { 'rock': 1, 'paper': 2, 'scissors': 3 };
   const intToMove = { 0: null, 1: 'rock', 2: 'paper', 3: 'scissors' };
 
-  // ── Persist error state across refreshes via localStorage ──
+  // ── Persist error across refreshes ──
   function checkPersistedError() {
     if (localStorage.getItem(ERROR_KEY) === 'true') {
-      triggerError();
+      const msg = localStorage.getItem(ERROR_MSG_KEY) || '';
+      applyErrorUI(msg);
     }
   }
 
-  function triggerError() {
-    errorState = true;
+  function triggerError(message) {
     localStorage.setItem(ERROR_KEY, 'true');
+    localStorage.setItem(ERROR_MSG_KEY, message);
+    applyErrorUI(message);
+  }
 
-    // Show modal
+  function applyErrorUI(message) {
+    errorState = true;
+    document.getElementById('error-message').textContent = message;
     document.getElementById('error-overlay').classList.add('show');
-
-    // Turn both sides red
     document.getElementById('left').classList.add('error-state');
     document.getElementById('right').classList.add('error-state');
-
-    // Turn both dots red
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('leftDot').classList.add('red');
     document.getElementById('rightDot').classList.remove('green');
     document.getElementById('rightDot').classList.add('red');
-
-    // Turn lightning red
     document.getElementById('lightning-divider').classList.add('error-flash');
-
-    // Disable shoot
     document.getElementById('shoot').classList.remove('green');
   }
 
   function resetError() {
     errorState = false;
     localStorage.removeItem(ERROR_KEY);
+    localStorage.removeItem(ERROR_MSG_KEY);
 
-    // Hide modal
     document.getElementById('error-overlay').classList.remove('show');
-
-    // Restore side colors
     document.getElementById('left').classList.remove('error-state');
     document.getElementById('right').classList.remove('error-state');
-
-    // Reset dots
     document.getElementById('leftDot').classList.remove('red', 'green');
     document.getElementById('rightDot').classList.remove('red', 'green');
-
-    // Restore lightning
     document.getElementById('lightning-divider').classList.remove('error-flash');
 
-    // Reset local tracking
-    leftMove = null;
-    rightMove = null;
-    leftSelected = false;
-    rightSelected = false;
+    leftMove        = null;
+    rightMove       = null;
+    leftSelected    = false;
+    rightSelected   = false;
+    lastSideUsed    = null;
+    leftClickCount  = 0;
+    rightClickCount = 0;
 
-    // Clear Blynk state
     sendBlynk('V20', 0);
     sendBlynk('V21', 0);
   }
@@ -415,25 +417,24 @@
   }
 
   function pollDots() {
-    if (errorState) return; // Don't poll while in error state
+    if (errorState) return;
 
     Promise.all([
       fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V20`).then(r => r.text()),
       fetch(`https://blynk.cloud/external/api/get?token=${TOKEN}&V21`).then(r => r.text())
     ]).then(([v20, v21]) => {
 
-      const leftVal = parseInt(v20) || 0;
+      const leftVal  = parseInt(v20) || 0;
       const rightVal = parseInt(v21) || 0;
 
-      leftMove = intToMove[leftVal];
+      leftMove  = intToMove[leftVal];
       rightMove = intToMove[rightVal];
 
-      const leftActive = leftVal > 0;
-      const rightActive = rightVal > 0;
+      if (leftVal  > 0) leftSelected  = true;
+      if (rightVal > 0) rightSelected = true;
 
-      // If Blynk shows both selected but our local tracking says we didn't do it, sync flags
-      if (leftActive) leftSelected = true;
-      if (rightActive) rightSelected = true;
+      const leftActive  = leftVal  > 0;
+      const rightActive = rightVal > 0;
 
       document.getElementById('leftDot').classList.toggle('green', leftActive);
       document.getElementById('rightDot').classList.toggle('green', rightActive);
@@ -444,28 +445,50 @@
   setInterval(pollDots, 1000);
 
   function selectMove(side, move) {
-    if (errorState) return; // Block input while error is shown
+    if (errorState) return;
 
+    // Increment raw click count for this side before any checks
     if (side === 'left') {
-      if (leftSelected) {
-        // Second selection on left — trigger error
-        triggerError();
-        return;
-      }
-      leftMove = move;
+      leftClickCount++;
+    } else {
+      rightClickCount++;
+    }
+
+    // ── Check 1: two players clicking the same side ──
+    // Any click beyond the first on a given side means a second person
+    // is trying to pick a gesture for the same arm.
+    if (side === 'left' && leftClickCount > 1) {
+      triggerError('Two players clicked buttons on the same side of the screen.');
+      return;
+    }
+    if (side === 'right' && rightClickCount > 1) {
+      triggerError('Two players clicked buttons on the same side of the screen.');
+      return;
+    }
+
+    // ── Check 2: one player clicking both sides ──
+    // If this session previously clicked the other side, that's one person
+    // trying to control both arms.
+    if (lastSideUsed !== null && lastSideUsed !== side) {
+      triggerError('A player tried to select the gesture for both arms.');
+      return;
+    }
+
+    // All clear — register the move
+    if (side === 'left') {
+      leftMove     = move;
       leftSelected = true;
       sendBlynk('V20', moveToInt[move]);
       document.getElementById('leftDot').classList.add('green');
     } else {
-      if (rightSelected) {
-        // Second selection on right — trigger error
-        triggerError();
-        return;
-      }
-      rightMove = move;
+      rightMove     = move;
       rightSelected = true;
       sendBlynk('V21', moveToInt[move]);
       document.getElementById('rightDot').classList.add('green');
+    }
+
+    if (lastSideUsed === null) {
+      lastSideUsed = side;
     }
 
     if (leftMove && rightMove) {
@@ -478,7 +501,7 @@
     if (!document.getElementById('shoot').classList.contains('green')) return;
     if (!leftMove || !rightMove) return;
 
-    const key = leftMove + '_' + rightMove;
+    const key    = leftMove + '_' + rightMove;
     const values = combos[key];
 
     let url = `https://blynk.cloud/external/api/batch/update?token=${TOKEN}`;
@@ -493,11 +516,13 @@
       })
       .catch(err => console.error("Error:", err));
 
-    // Reset everything after shoot
-    leftMove = null;
-    rightMove = null;
-    leftSelected = false;
-    rightSelected = false;
+    leftMove        = null;
+    rightMove       = null;
+    leftSelected    = false;
+    rightSelected   = false;
+    lastSideUsed    = null;
+    leftClickCount  = 0;
+    rightClickCount = 0;
 
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('rightDot').classList.remove('green');
@@ -508,7 +533,7 @@
   }
 
   const combos = {
-    rock_rock:         { V0:0, V1:0, V2:0, V3:0, V4:0, V5:0, V6:0, V7:0, V8:0, V9:0, V10:0, V11:0 },
+    rock_rock:         { V0:0,  V1:0,  V2:0,  V3:0,  V4:0,  V5:0,  V6:0,  V7:0,  V8:0,  V9:0,  V10:0,  V11:0  },
     rock_paper:        { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
     rock_scissors:     { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
     paper_rock:        { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
@@ -519,7 +544,6 @@
     scissors_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 }
   };
 
-  // Check on load if a previous error was persisted
   checkPersistedError();
   </script>
 
