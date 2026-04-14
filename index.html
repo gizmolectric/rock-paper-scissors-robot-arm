@@ -508,47 +508,60 @@
     }
   }
 
-  function shoot() {
-    if (errorState) return;
-    if (!document.getElementById('shoot').classList.contains('green')) return;
-    if (!leftMove || !rightMove) return;
+async function shoot() {
+  if (errorState) return;
+  if (!document.getElementById('shoot').classList.contains('green')) return;
+  if (!leftMove || !rightMove) return;
 
-    const key = leftMove + '_' + rightMove;
-    const values = combos[key];
+  const key = leftMove + '_' + rightMove;
+  const values = combos[key];
 
-    const angleA = 0;
-    const angleB = 90;
+  const angleA = 0;
+  const angleB = 90;
 
-    fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleA}&V13=${angleA}`)
-    .then(() => new Promise(r => setTimeout(r, 200)))
-    .then(() => fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleB}&V13=${angleB}`))
-    .then(() => new Promise(r => setTimeout(r, 200)))
-    .then(() => fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleA}&V13=${angleA}`))
-    .then(() => new Promise(r => setTimeout(r, 200)))
-    .then(() => {
-      let url = `https://blynk.cloud/external/api/batch/update?token=${TOKEN}`;
-      for (let k in values) {
-        url += `&${k}=${values[k]}`;
-      }
-      return fetch(url);
-    })
-    .catch(err => console.error("Error:", err));
+  // helper delay
+  const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
-    leftMove = null;
-    rightMove = null;
-    leftFirstMove = null;
-    rightFirstMove = null;
-    localSideSelected = null;
+  try {
+    // STEP 1 → go to A
+    await fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleA}&V13=${angleA}`);
+    await delay(500);  // ⬅️ increased
 
-    document.getElementById('leftDot').classList.remove('green');
-    document.getElementById('rightDot').classList.remove('green');
-    document.getElementById('shoot').classList.remove('green');
-    hideLabel('left');
-    hideLabel('right');
+    // STEP 2 → go to B
+    await fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleB}&V13=${angleB}`);
+    await delay(700);  // ⬅️ more time to actually reach position
 
-    sendBlynk('V20', 0);
-    sendBlynk('V21', 0);
+    // STEP 3 → back to A
+    await fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleA}&V13=${angleA}`);
+    await delay(500);
+
+    // STEP 4 → now run full combo
+    let url = `https://blynk.cloud/external/api/batch/update?token=${TOKEN}`;
+    for (let k in values) {
+      url += `&${k}=${values[k]}`;
+    }
+    await fetch(url);
+
+  } catch (err) {
+    console.error("Error:", err);
   }
+
+  // reset state (unchanged)
+  leftMove = null;
+  rightMove = null;
+  leftFirstMove = null;
+  rightFirstMove = null;
+  localSideSelected = null;
+
+  document.getElementById('leftDot').classList.remove('green');
+  document.getElementById('rightDot').classList.remove('green');
+  document.getElementById('shoot').classList.remove('green');
+  hideLabel('left');
+  hideLabel('right');
+
+  sendBlynk('V20', 0);
+  sendBlynk('V21', 0);
+}
 
   const combos = {
     rock_rock:         { V0:0,  V1:0,  V2:0,  V3:0,  V4:0,  V5:0,  V6:0,  V7:0,  V8:0,  V9:0,  V10:0,  V11:0,  V12:0,  V13:0 },
