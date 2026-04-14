@@ -501,40 +501,67 @@
     }
   }
 
-  function shoot() {
-    if (errorState) return;
-    if (!document.getElementById('shoot').classList.contains('green')) return;
-    if (!leftMove || !rightMove) return;
+function shoot() {
+  if (errorState) return;
+  if (!document.getElementById('shoot').classList.contains('green')) return;
+  if (!leftMove || !rightMove) return;
 
-    const key = leftMove + '_' + rightMove;
-    const values = combos[key];
+  const key = leftMove + '_' + rightMove;
+  const values = combos[key];
 
+  // 🔥 Animation angles (you can tweak these)
+  const angleA = 0;
+  const angleB = 180;
+
+  // Step 1 → go to angle A
+  fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleA}&V13=${angleA}`)
+  .then(() => {
+    // Step 2 → go to angle B
+    return new Promise(resolve => setTimeout(resolve, 200));
+  })
+  .then(() => {
+    return fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleB}&V13=${angleB}`);
+  })
+  .then(() => {
+    // Step 3 → back to angle A
+    return new Promise(resolve => setTimeout(resolve, 200));
+  })
+  .then(() => {
+    return fetch(`https://blynk.cloud/external/api/update?token=${TOKEN}&V12=${angleA}&V13=${angleA}`);
+  })
+  .then(() => {
+    // Step 4 → NOW send full combo (V0–V13)
+    return new Promise(resolve => setTimeout(resolve, 200));
+  })
+  .then(() => {
     let url = `https://blynk.cloud/external/api/batch/update?token=${TOKEN}`;
     for (let k in values) {
       url += `&${k}=${values[k]}`;
     }
+    return fetch(url);
+  })
+  .then(res => {
+    if (res.ok) console.log("Blynk batch updated successfully");
+    else res.text().then(t => console.error("Blynk batch failed:", t));
+  })
+  .catch(err => console.error("Error:", err));
 
-    fetch(url)
-      .then(res => {
-        if (res.ok) console.log("Blynk batch updated successfully");
-        else res.text().then(t => console.error("Blynk batch failed:", t));
-      })
-      .catch(err => console.error("Error:", err));
+  // Reset state (unchanged)
+  leftMove = null;
+  rightMove = null;
+  leftFirstMove = null;
+  rightFirstMove = null;
 
-    leftMove = null;
-    rightMove = null;
-    leftFirstMove = null;
-    rightFirstMove = null;
+  document.getElementById('leftDot').classList.remove('green');
+  document.getElementById('rightDot').classList.remove('green');
+  document.getElementById('shoot').classList.remove('green');
+  hideLabel('left');
+  hideLabel('right');
 
-    document.getElementById('leftDot').classList.remove('green');
-    document.getElementById('rightDot').classList.remove('green');
-    document.getElementById('shoot').classList.remove('green');
-    hideLabel('left');
-    hideLabel('right');
+  sendBlynk('V20', 0);
+  sendBlynk('V21', 0);
+}
 
-    sendBlynk('V20', 0);
-    sendBlynk('V21', 0);
-  }
 
   const combos = {
     rock_rock:         { V0:0,  V1:0,  V2:0,  V3:0,  V4:0,  V5:0,  V6:0,  V7:0,  V8:0,  V9:0,  V10:0,  V11:0,  V12:0,  V13:0 },
