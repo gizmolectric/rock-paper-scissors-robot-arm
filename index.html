@@ -121,6 +121,23 @@
       box-shadow: 0 0 12px #ef4444;
     }
 
+    /* Gesture confirmation label — only visible locally after a pick */
+    .gesture-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.7);
+      min-height: 1.2em;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .gesture-label.visible {
+      opacity: 1;
+    }
+
     #lightning-divider {
       position: absolute;
       top: 0;
@@ -289,8 +306,8 @@
   <div id="error-overlay">
     <div id="error-modal">
       <div class="error-icon">⚠️</div>
-      <h3>Foul Play Detected</h3>
-      <p id="error-message"></p>
+      <h3>Gesture Already Selected!</h3>
+      <p>You already selected a gesture!<br>Reset to change it.</p>
       <button id="reset-btn" onclick="resetError()">↺ Reset</button>
     </div>
   </div>
@@ -301,6 +318,7 @@
       <button type="button" class="btn" onclick="selectMove('left','rock')">Rock</button>
       <button type="button" class="btn" onclick="selectMove('left','paper')">Paper</button>
       <button type="button" class="btn" onclick="selectMove('left','scissors')">Scissors</button>
+      <div class="gesture-label" id="leftLabel"></div>
       <div class="dot" id="leftDot"></div>
     </div>
 
@@ -309,6 +327,7 @@
       <button type="button" class="btn" onclick="selectMove('right','rock')">Rock</button>
       <button type="button" class="btn" onclick="selectMove('right','paper')">Paper</button>
       <button type="button" class="btn" onclick="selectMove('right','scissors')">Scissors</button>
+      <div class="gesture-label" id="rightLabel"></div>
       <div class="dot" id="rightDot"></div>
     </div>
 
@@ -334,81 +353,77 @@
     <button type="button" class="btn" id="shoot" onclick="shoot()">⚡ SHOOT ⚡</button>
   </div>
 
-  <script>
-  const TOKEN         = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
-  const ERROR_KEY     = 'rps_error_state';
-  const ERROR_MSG_KEY = 'rps_error_msg';
+<script>
+  const TOKEN = "f80C1NmguQB0LgIqXHvf7hYQoqTOLwCL";
+  const ERROR_KEY = 'rps_error_state';
 
-  let leftMove      = null;
-  let rightMove     = null;
-  let leftSelected  = false;
-  let rightSelected = false;
-
-  // Tracks the first side this browser session clicked this round.
-  // A click on the opposite side triggers the "both arms" error.
-  let lastSideUsed = null;
-
-  // Raw click counters per side. Any side receiving a second click
-  // (even from a different person on the same side) triggers the
-  // "two players on same side" error.
-  let leftClickCount  = 0;
-  let rightClickCount = 0;
-
+  let leftMove = null;
+  let rightMove = null;
+  let leftFirstMove = null;
+  let rightFirstMove = null;
   let errorState = false;
 
   const moveToInt = { 'rock': 1, 'paper': 2, 'scissors': 3 };
   const intToMove = { 0: null, 1: 'rock', 2: 'paper', 3: 'scissors' };
 
-  // ── Persist error across refreshes ──
   function checkPersistedError() {
     if (localStorage.getItem(ERROR_KEY) === 'true') {
-      const msg = localStorage.getItem(ERROR_MSG_KEY) || '';
-      applyErrorUI(msg);
+      triggerError();
     }
   }
 
-  function triggerError(message) {
-    localStorage.setItem(ERROR_KEY, 'true');
-    localStorage.setItem(ERROR_MSG_KEY, message);
-    applyErrorUI(message);
-  }
-
-  function applyErrorUI(message) {
+  function triggerError() {
     errorState = true;
-    document.getElementById('error-message').textContent = message;
+    localStorage.setItem(ERROR_KEY, 'true');
+
     document.getElementById('error-overlay').classList.add('show');
     document.getElementById('left').classList.add('error-state');
     document.getElementById('right').classList.add('error-state');
+
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('leftDot').classList.add('red');
     document.getElementById('rightDot').classList.remove('green');
     document.getElementById('rightDot').classList.add('red');
+
     document.getElementById('lightning-divider').classList.add('error-flash');
     document.getElementById('shoot').classList.remove('green');
+
+    hideLabel('left');
+    hideLabel('right');
   }
 
   function resetError() {
     errorState = false;
     localStorage.removeItem(ERROR_KEY);
-    localStorage.removeItem(ERROR_MSG_KEY);
 
     document.getElementById('error-overlay').classList.remove('show');
     document.getElementById('left').classList.remove('error-state');
     document.getElementById('right').classList.remove('error-state');
+
     document.getElementById('leftDot').classList.remove('red', 'green');
     document.getElementById('rightDot').classList.remove('red', 'green');
+
     document.getElementById('lightning-divider').classList.remove('error-flash');
 
-    leftMove        = null;
-    rightMove       = null;
-    leftSelected    = false;
-    rightSelected   = false;
-    lastSideUsed    = null;
-    leftClickCount  = 0;
-    rightClickCount = 0;
+    leftMove = null;
+    rightMove = null;
+    leftFirstMove = null;
+    rightFirstMove = null;
 
     sendBlynk('V20', 0);
     sendBlynk('V21', 0);
+  }
+
+  function showLabel(side, move) {
+    const el = document.getElementById(side + 'Label');
+    el.textContent = move.charAt(0).toUpperCase() + move.slice(1) + ' gesture selected';
+    el.classList.add('visible');
+  }
+
+  function hideLabel(side) {
+    const el = document.getElementById(side + 'Label');
+    el.classList.remove('visible');
+    el.textContent = '';
   }
 
   function sendBlynk(pin, value) {
@@ -430,11 +445,14 @@
       leftMove  = intToMove[leftVal];
       rightMove = intToMove[rightVal];
 
-      if (leftVal  > 0) leftSelected  = true;
-      if (rightVal > 0) rightSelected = true;
-
-      const leftActive  = leftVal  > 0;
+      const leftActive  = leftVal > 0;
       const rightActive = rightVal > 0;
+
+      if (leftActive  && leftFirstMove  === null) leftFirstMove  = leftMove;
+      if (rightActive && rightFirstMove === null) rightFirstMove = rightMove;
+
+      if (!leftActive)  { leftFirstMove  = null; hideLabel('left'); }
+      if (!rightActive) { rightFirstMove = null; hideLabel('right'); }
 
       document.getElementById('leftDot').classList.toggle('green', leftActive);
       document.getElementById('rightDot').classList.toggle('green', rightActive);
@@ -447,48 +465,35 @@
   function selectMove(side, move) {
     if (errorState) return;
 
-    // Increment raw click count for this side before any checks
+    // 🔥 NEW FIX: prevent selecting BOTH sides in one round
+    if (
+      (side === 'left' && rightFirstMove !== null) ||
+      (side === 'right' && leftFirstMove !== null)
+    ) {
+      triggerError();
+      return;
+    }
+
     if (side === 'left') {
-      leftClickCount++;
-    } else {
-      rightClickCount++;
-    }
-
-    // ── Check 1: two players clicking the same side ──
-    // Any click beyond the first on a given side means a second person
-    // is trying to pick a gesture for the same arm.
-    if (side === 'left' && leftClickCount > 1) {
-      triggerError('Two players clicked buttons on the same side of the screen.');
-      return;
-    }
-    if (side === 'right' && rightClickCount > 1) {
-      triggerError('Two players clicked buttons on the same side of the screen.');
-      return;
-    }
-
-    // ── Check 2: one player clicking both sides ──
-    // If this session previously clicked the other side, that's one person
-    // trying to control both arms.
-    if (lastSideUsed !== null && lastSideUsed !== side) {
-      triggerError('A player tried to select the gesture for both arms.');
-      return;
-    }
-
-    // All clear — register the move
-    if (side === 'left') {
-      leftMove     = move;
-      leftSelected = true;
+      if (leftFirstMove !== null && leftFirstMove !== move) {
+        triggerError();
+        return;
+      }
+      leftMove = move;
+      leftFirstMove = move;
       sendBlynk('V20', moveToInt[move]);
       document.getElementById('leftDot').classList.add('green');
+      showLabel('left', move);
     } else {
-      rightMove     = move;
-      rightSelected = true;
+      if (rightFirstMove !== null && rightFirstMove !== move) {
+        triggerError();
+        return;
+      }
+      rightMove = move;
+      rightFirstMove = move;
       sendBlynk('V21', moveToInt[move]);
       document.getElementById('rightDot').classList.add('green');
-    }
-
-    if (lastSideUsed === null) {
-      lastSideUsed = side;
+      showLabel('right', move);
     }
 
     if (leftMove && rightMove) {
@@ -501,7 +506,7 @@
     if (!document.getElementById('shoot').classList.contains('green')) return;
     if (!leftMove || !rightMove) return;
 
-    const key    = leftMove + '_' + rightMove;
+    const key = leftMove + '_' + rightMove;
     const values = combos[key];
 
     let url = `https://blynk.cloud/external/api/batch/update?token=${TOKEN}`;
@@ -516,36 +521,35 @@
       })
       .catch(err => console.error("Error:", err));
 
-    leftMove        = null;
-    rightMove       = null;
-    leftSelected    = false;
-    rightSelected   = false;
-    lastSideUsed    = null;
-    leftClickCount  = 0;
-    rightClickCount = 0;
+    leftMove = null;
+    rightMove = null;
+    leftFirstMove = null;
+    rightFirstMove = null;
 
     document.getElementById('leftDot').classList.remove('green');
     document.getElementById('rightDot').classList.remove('green');
     document.getElementById('shoot').classList.remove('green');
+    hideLabel('left');
+    hideLabel('right');
 
     sendBlynk('V20', 0);
     sendBlynk('V21', 0);
   }
 
   const combos = {
-    rock_rock:         { V0:0,  V1:0,  V2:0,  V3:0,  V4:0,  V5:0,  V6:0,  V7:0,  V8:0,  V9:0,  V10:0,  V11:0  },
-    rock_paper:        { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-    rock_scissors:     { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-    paper_rock:        { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-    paper_paper:       { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-    paper_scissors:    { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-    scissors_rock:     { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-    scissors_paper:    { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 },
-    scissors_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90 }
+    rock_rock:         { V0:0,  V1:0,  V2:0,  V3:0,  V4:0,  V5:0,  V6:0,  V7:0,  V8:0,  V9:0,  V10:0,  V11:0,  V12:0,  V13:0 },
+    rock_paper:        { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90, V12:90, V13:90 },
+    rock_scissors:     { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90, V12:90, V13:90 },
+    paper_rock:        { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90, V12:90, V13:90 },
+    paper_paper:       { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90, V12:90, V13:90 },
+    paper_scissors:    { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90, V12:90, V13:90 },
+    scissors_rock:     { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90, V12:90, V13:90 },
+    scissors_paper:    { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90, V12:90, V13:90 },
+    scissors_scissors: { V0:90, V1:90, V2:90, V3:90, V4:90, V5:90, V6:90, V7:90, V8:90, V9:90, V10:90, V11:90, V12:90, V13:90 }
   };
 
   checkPersistedError();
-  </script>
+</script>
 
 </body>
 </html>
